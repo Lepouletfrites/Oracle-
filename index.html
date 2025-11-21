@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Oracle JDR Solo - A-Code Version</title>
+    
+    <!-- Chargement React (CDN) - Nécessaire pour la logique -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- CSS PUR (Pas de Tailwind, marche 100% hors ligne si React est en cache) -->
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --bg-input: #020617;
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+            --accent: #d97706; /* Amber 600 */
+            --accent-hover: #b45309;
+            --border: #334155;
+            --success: #22c55e;
+            --danger: #ef4444;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+        
+        body { background-color: var(--bg-dark); color: var(--text-main); height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+
+        /* HEADER */
+        header {
+            background-color: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            padding: 10px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 60px;
+            flex-shrink: 0;
+        }
+        .logo { display: flex; align-items: center; gap: 10px; color: var(--accent); font-weight: bold; font-size: 1.1rem; text-transform: uppercase; letter-spacing: 1px; }
+        .btn-reset { background: none; border: 1px solid var(--border); color: var(--text-muted); padding: 5px 10px; border-radius: 4px; font-size: 0.75rem; display: flex; align-items: center; gap: 5px; cursor: pointer; }
+
+        /* MAIN LAYOUT */
+        .app-container { flex: 1; display: flex; overflow: hidden; position: relative; }
+        
+        /* NAVIGATION */
+        nav {
+            background-color: var(--bg-card);
+            border-top: 1px solid var(--border);
+            height: 70px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            width: 100%;
+            flex-shrink: 0;
+            z-index: 10;
+        }
+        /* Desktop Nav adjustments */
+        @media (min-width: 768px) {
+            .app-container { flex-direction: row; }
+            nav { width: 80px; height: 100%; flex-direction: column; justify-content: flex-start; padding-top: 20px; border-top: none; border-right: 1px solid var(--border); gap: 10px; }
+        }
+
+        .nav-btn {
+            background: none; border: none; color: var(--text-muted);
+            display: flex; flex-direction: column; align-items: center; gap: 4px;
+            padding: 8px; width: 100%; cursor: pointer; position: relative;
+        }
+        .nav-btn svg { width: 24px; height: 24px; }
+        .nav-btn span { font-size: 0.7rem; font-weight: 500; }
+        .nav-btn.active { color: var(--accent); }
+        .nav-btn.active::after {
+            content: ''; position: absolute; background: var(--accent);
+        }
+        @media (max-width: 767px) { .nav-btn.active::after { bottom: 0; width: 40%; height: 3px; border-radius: 2px 2px 0 0; } }
+        @media (min-width: 768px) { .nav-btn.active::after { right: 0; top: 10%; height: 80%; width: 3px; border-radius: 2px 0 0 2px; } }
+
+        /* CONTENT AREA */
+        main { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        @media (min-width: 768px) { main { flex-direction: row; } }
+
+        .content-panel {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: radial-gradient(circle at top right, #1e293b 0%, #0f172a 100%);
+        }
+        
+        .history-panel {
+            background-color: var(--bg-input);
+            border-top: 1px solid var(--border);
+            height: 35vh;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+        @media (min-width: 768px) {
+            .history-panel { width: 320px; height: 100%; border-top: none; border-left: 1px solid var(--border); }
+        }
+
+        /* COMPONENTS */
+        .card {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        h2 { font-size: 1.5rem; font-weight: 300; margin-bottom: 5px; text-align: center; color: #fff; }
+        p.subtitle { color: var(--text-muted); text-align: center; font-size: 0.9rem; margin-bottom: 20px; }
+
+        /* BUTTONS */
+        .btn-primary {
+            background: var(--accent); color: white; border: none;
+            width: 100%; padding: 15px; border-radius: 8px;
+            font-size: 1.1rem; font-weight: bold; cursor: pointer;
+            box-shadow: 0 0 15px rgba(217, 119, 6, 0.3);
+            transition: transform 0.1s;
+        }
+        .btn-primary:active { transform: scale(0.98); }
+
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .btn-action {
+            background: var(--bg-card); border: 1px solid var(--border); color: var(--text-main);
+            padding: 15px; border-radius: 8px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            font-size: 0.9rem; font-weight: 500;
+        }
+        .btn-action:active { background: var(--bg-input); }
+
+        /* DICE GRID */
+        .dice-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+        @media (max-width: 400px) { .dice-grid { grid-template-columns: repeat(3, 1fr); } }
+        
+        .btn-dice {
+            background: var(--bg-card); border: 2px solid var(--border); color: var(--text-main);
+            height: 70px; border-radius: 12px; cursor: pointer;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: transform 0.1s;
+        }
+        .btn-dice span { font-size: 1.2rem; font-weight: bold; font-family: monospace; }
+        .btn-dice:active { transform: scale(0.9); }
+        .btn-dice.highlight { border-color: var(--accent); background: rgba(217, 119, 6, 0.1); box-shadow: 0 0 10px rgba(217, 119, 6, 0.2); }
+
+        /* LISTS & GENERATORS */
+        .gen-list { display: flex; flex-direction: column; gap: 10px; }
+        .gen-item {
+            background: var(--bg-card); border: 1px solid var(--border); padding: 12px;
+            border-radius: 8px; display: flex; align-items: center; gap: 15px;
+            cursor: pointer; text-align: left;
+        }
+        .gen-icon { background: var(--bg-input); padding: 8px; border-radius: 50%; display: flex; }
+        .gen-content h4 { font-size: 0.9rem; color: #fff; margin-bottom: 2px; }
+        .gen-content p { font-size: 0.75rem; color: var(--text-muted); }
+
+        /* JOURNAL */
+        textarea {
+            width: 100%; height: 60vh; background: rgba(0,0,0,0.2);
+            border: 1px solid var(--border); border-radius: 8px;
+            padding: 15px; color: var(--text-main); font-size: 1rem; line-height: 1.6;
+            resize: none; outline: none;
+        }
+        textarea:focus { border-color: var(--accent); }
+
+        /* HISTORY LOGS */
+        .history-header { padding: 10px 15px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; font-weight: bold; text-transform: uppercase; color: var(--text-muted); }
+        .history-list { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .log-entry {
+            background: rgba(30, 41, 59, 0.5); border-left: 4px solid var(--border);
+            padding: 10px; border-radius: 4px; font-size: 0.9rem;
+            animation: slideIn 0.3s ease;
+        }
+        .log-meta { display: flex; justify-content: space-between; font-size: 0.7rem; opacity: 0.7; margin-bottom: 4px; text-transform: uppercase; font-weight: bold; }
+        .log-content { font-weight: 500; word-break: break-word; }
+        .log-details { font-size: 0.8rem; margin-top: 5px; padding-top: 5px; border-top: 1px solid rgba(255,255,255,0.1); opacity: 0.8; white-space: pre-line; }
+
+        /* COLORS FOR LOGS */
+        .log-oracle.oui { border-color: var(--success); color: #86efac; background: rgba(34, 197, 94, 0.1); }
+        .log-oracle.non { border-color: var(--danger); color: #fca5a5; background: rgba(239, 68, 68, 0.1); }
+        .log-dice.crit { border-color: var(--accent); color: var(--accent); }
+        .log-dice.fail { border-color: var(--danger); color: var(--danger); }
+
+        /* UTILS */
+        .likelihood-row { display: flex; gap: 5px; margin-bottom: 20px; }
+        .btn-like { flex: 1; background: var(--bg-input); border: 1px solid var(--border); color: var(--text-muted); padding: 8px 0; border-radius: 4px; font-size: 0.7rem; font-weight: bold; text-transform: uppercase; cursor: pointer; }
+        .btn-like.active { background: rgba(217, 119, 6, 0.2); border-color: var(--accent); color: var(--accent); }
+        
+        .input-group { display: flex; gap: 5px; padding: 10px; border-top: 1px solid var(--border); }
+        .input-group input { flex: 1; background: var(--bg-input); border: 1px solid var(--border); color: white; padding: 8px; border-radius: 4px; }
+        .btn-add { background: var(--accent); color: white; border: none; width: 35px; border-radius: 4px; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; }
+
+        .interactive-list { display: flex; flex-direction: column; gap: 5px; height: 200px; overflow-y: auto; background: rgba(0,0,0,0.2); border-radius: 4px; padding: 5px; margin-bottom: 10px; }
+        .list-item { display: flex; justify-content: space-between; padding: 8px; background: var(--bg-card); border-radius: 4px; font-size: 0.9rem; }
+        .btn-del { background: none; border: none; color: var(--text-muted); cursor: pointer; }
+        .btn-del:hover { color: var(--danger); }
+
+        @keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        
+        /* Scrollbar clean */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-input); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- APP REACT -->
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- ICÔNES (SVG Inline pour perf) ---
+        const Icons = {
+            Skull: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><path d="M8 20v2h8v-2"/><path d="m12.5 17-.5-1-.5 1h1z"/><path d="M16 20a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20"/></svg>,
+            Brain: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/><path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4"/></svg>,
+            Dices: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect width="12" height="12" x="2" y="10" rx="2" ry="2"/><path d="m17.92 14 3.5-3.5a2.24 2.24 0 0 0 0-3l-5-4.92a2.24 2.24 0 0 0-3 0L10 6"/></svg>,
+            Sparkles: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>,
+            List: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>,
+            Book: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
+            Trash: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>,
+            Save: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>,
+            Reset: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>,
+            User: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+            Map: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" x2="9" y1="3" y2="18"/><line x1="15" x2="15" y1="6" y2="21"/></svg>,
+            Feather: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" x2="2" y1="8" y2="22"/></svg>,
+            Zap: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        };
+
+        // --- DONNÉES ---
+        const DATA = {
+            verbs: ["Attaquer", "Défendre", "Chercher", "Négocier", "Voler", "Surveiller", "Voyager", "Inspecter", "Trahir", "Sauver", "Détruire", "Créer", "Commander", "Fuir", "Cacher", "Révéler", "Capturer", "Libérer", "Changer", "Transporter", "Usurper", "Invoquer", "Bannir", "Séduire", "Intimider", "Soigner", "Empoisonner", "Piéger", "Guider", "Perdre", "Étudier", "Oublier", "Venger", "Pardonner", "Sacrifier", "Corrompre", "Purifier", "Échanger", "Voler", "Mentir"],
+            nouns: ["Ennemi", "Ami", "Trésor", "Piège", "Secret", "Porte", "Monstre", "Magie", "Arme", "Information", "Danger", "Chemin", "Obstacle", "Récompense", "Nature", "Ville", "Ruine", "Dieu", "Roi", "Mort", "Ombre", "Lumière", "Temps", "Rêve", "Cauchemar", "Sang", "Or", "Savoir", "Folie", "Honneur", "Dette", "Promesse", "Fantôme", "Rituel", "Carte", "Clé", "Miroir", "Poison", "Remède", "Tempête"],
+            npc: {
+                races: ["Humain", "Elfe", "Nain", "Halfelin", "Orc", "Tieffelin", "Drakéide", "Gnome", "Aasimar", "Gobelin", "Tabaxi", "Changeforme"],
+                classes: ["Guerrier", "Mage", "Voleur", "Clerc", "Barde", "Druide", "Paladin", "Rôdeur", "Sorcier", "Moine", "Barbare", "Artificier", "Nécromancien", "Marchand"],
+                traits: ["Arrogant", "Timide", "Courageux", "Cupide", "Mystérieux", "Bavard", "Loyal", "Traître", "Blessé", "Riche", "Fanatique", "Mélancolique", "Naïf", "Cruel", "Séducteur", "Paranoïaque"],
+                motivations: ["Cherche à retrouver un proche disparu", "Veut se venger d'un ancien affront", "Doit payer une dette colossale", "Fuit un passé criminel", "Recherche un artefact de pouvoir", "Veut prouver sa valeur à sa famille", "Est maudit et cherche un remède", "Sert une divinité obscure", "Veut juste s'enrichir", "Protège un secret d'état", "Recherche l'amour perdu", "Veut tuer un rival"],
+                names_prefix: ["Ar", "Bor", "Cal", "Dor", "El", "Fal", "Gor", "Hal", "Ian", "Jar", "Kel", "Lor", "Mor", "Nal", "Or", "Pan", "Qu", "Ras", "Sil", "Tar", "Xan", "Zel"],
+                names_suffix: ["an", "bos", "cor", "dil", "en", "fin", "gorn", "hion", "il", "jun", "kan", "los", "mir", "nor", "or", "phis", "quor", "ros", "sin", "tor", "thas", "vyr"]
+            },
+            dungeon: {
+                type: ["Caverne naturelle", "Ruines antiques", "Crypte oubliée", "Temple profané", "Égouts labyrinthiques", "Forteresse naine", "Laboratoire arcanique", "Prison abandonnée"],
+                feature: ["Un autel sanglant", "Une statue qui pleure", "Un gouffre sans fond", "Des champignons luminescents", "Un trône brisé", "Une fresque prophétique", "Une fontaine magique", "Des chaînes aux murs"],
+                danger: ["Piège à fléchettes", "Sol instable", "Gaz toxique", "Embuscade de monstres", "Silence surnaturel", "Zone de magie morte", "Inondation soudaine", "Eboulis"]
+            },
+            quests: {
+                clients: ["Un noble déchu", "Une guilde de voleurs", "Un esprit tourmenté", "Un marchand désespéré", "Un ordre religieux", "Un villageois terrifié", "Un dragon polymorphe", "Une voix dans votre tête"],
+                targets: ["Retrouver", "Détruire", "Escorter", "Enquêter sur", "Voler", "Protéger", "Capturer", "Négocier avec"],
+                objects: ["une relique maudite", "un héritier caché", "un monstre légendaire", "un document compromettant", "un lieu sacré", "une caravane de vivres", "une formule alchimique", "une âme emprisonnée"],
+                twists: ["mais c'est un piège", "mais le temps est compté", "mais une faction rivale est déjà là", "mais l'objet est vivant", "mais cela réveillera un mal ancien", "mais le client a menti", "mais la cible est un allié", "mais il faut se sacrifier"]
+            }
+        };
+
+        const getRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+        const generateName = () => getRandom(DATA.npc.names_prefix) + getRandom(DATA.npc.names_suffix);
+
+        // --- APP PRINCIPALE ---
+        function SoloRPGApp() {
+            const [activeTab, setActiveTab] = useState('oracle');
+            
+            // Load Data Safe
+            const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d } catch { return d } };
+            const [logs, setLogs] = useState(() => load('rpg_logs_v5', []));
+            const [journal, setJournal] = useState(() => localStorage.getItem('rpg_journal_v5') || "");
+            const [lists, setLists] = useState(() => load('rpg_lists_v5', { npcs: [], threads: [] }));
+            const [likelihood, setLikelihood] = useState(0);
+            
+            const logsEndRef = useRef(null);
+
+            useEffect(() => localStorage.setItem('rpg_logs_v5', JSON.stringify(logs)), [logs]);
+            useEffect(() => localStorage.setItem('rpg_journal_v5', journal), [journal]);
+            useEffect(() => localStorage.setItem('rpg_lists_v5', JSON.stringify(lists)), [lists]);
+            
+            useEffect(() => logsEndRef.current?.scrollIntoView({ behavior: "smooth" }), [logs]);
+
+            const addLog = (type, title, content, details = null) => {
+                setLogs(prev => [...prev, { id: Date.now(), time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), type, title, content, details }]);
+            };
+
+            const rollDice = (sides) => {
+                const res = Math.floor(Math.random() * sides) + 1;
+                let crit = "";
+                if(sides===20 && res===20) crit = " (CRITIQUE)";
+                if(sides===20 && res===1) crit = " (ÉCHEC)";
+                addLog('dice', `d${sides}`, `${res}${crit}`, null);
+            };
+
+            const oracle = () => {
+                const r = Math.floor(Math.random() * 20) + 1;
+                let thresh = 10;
+                if (likelihood === -2) thresh = 18;
+                if (likelihood === -1) thresh = 15;
+                if (likelihood === 1) thresh = 5;
+                if (likelihood === 2) thresh = 2;
+                
+                let ans = r > thresh ? "OUI" : "NON";
+                if (r > thresh && r >= 19) ans = "OUI, ET...";
+                else if (r > thresh && r % 2 !== 0) ans = "OUI, MAIS...";
+                else if (r <= thresh && r <= 2) ans = "NON, ET...";
+                else if (r <= thresh && r % 2 === 0) ans = "NON, MAIS...";
+                
+                addLog('oracle', 'Oracle', ans);
+            };
+
+            const gens = {
+                muse: () => addLog('muse', 'Inspiration', `${getRandom(DATA.verbs)} / ${getRandom(DATA.nouns)}`),
+                npc: () => addLog('npc', 'PNJ', generateName(), `${getRandom(DATA.npc.races)} ${getRandom(DATA.npc.classes)}\n${getRandom(DATA.npc.traits)}`),
+                loc: () => addLog('loc', 'Lieu', getRandom(DATA.dungeon.type), `${getRandom(DATA.dungeon.feature)}\nDanger: ${getRandom(DATA.dungeon.danger)}`),
+                quest: () => addLog('quest', 'Quête', 'Mission', `${getRandom(DATA.quests.clients)} veut ${getRandom(DATA.quests.targets)} ${getRandom(DATA.quests.objects)}.`)
+            };
+
+            const listActions = {
+                add: (k, val) => { if(val) setLists(p => ({...p, [k]: [...p[k], val]})) },
+                del: (k, idx) => setLists(p => ({...p, [k]: p[k].filter((_, i) => i !== idx)}))
+            };
+
+            const exportTxt = () => {
+                const txt = `JOURNAL:\n${journal}\n\nHISTORIQUE:\n${logs.map(l => `[${l.time}] ${l.title}: ${l.content}`).join('\n')}`;
+                const blob = new Blob([txt], {type:'text/plain'});
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob); a.download = 'jdr_solo.txt'; a.click();
+            };
+
+            return (
+                <div className="app-container">
+                    {/* NAV */}
+                    <nav>
+                        <button className={`nav-btn ${activeTab==='oracle'?'active':''}`} onClick={()=>setActiveTab('oracle')}><Icons.Brain/><span>Oracle</span></button>
+                        <button className={`nav-btn ${activeTab==='dice'?'active':''}`} onClick={()=>setActiveTab('dice')}><Icons.Dices/><span>Dés</span></button>
+                        <button className={`nav-btn ${activeTab==='tools'?'active':''}`} onClick={()=>setActiveTab('tools')}><Icons.List/><span>Outils</span></button>
+                        <button className={`nav-btn ${activeTab==='journal'?'active':''}`} onClick={()=>setActiveTab('journal')}><Icons.Book/><span>Journal</span></button>
+                    </nav>
+
+                    {/* MAIN */}
+                    <main>
+                        <div className="content-panel">
+                            
+                            {/* HEADER MOBILE */}
+                            <div style={{display:'flex', justifyContent:'space-between', marginBottom:20}}>
+                                <div className="logo"><Icons.Skull/> JDR SOLO</div>
+                                <button className="btn-reset" onClick={()=>{if(confirm('Reset?')) localStorage.clear()||location.reload()}}><Icons.Reset/> Reset</button>
+                            </div>
+
+                            {activeTab === 'oracle' && (
+                                <div className="card">
+                                    <h2>L'Oracle</h2>
+                                    <p className="subtitle">Posez une question binaire</p>
+                                    
+                                    <div className="likelihood-row">
+                                        <button className={`btn-like ${likelihood===-2?'active':''}`} onClick={()=>setLikelihood(-2)}>Impos.</button>
+                                        <button className={`btn-like ${likelihood===-1?'active':''}`} onClick={()=>setLikelihood(-1)}>Faible</button>
+                                        <button className={`btn-like ${likelihood===0?'active':''}`} onClick={()=>setLikelihood(0)}>50/50</button>
+                                        <button className={`btn-like ${likelihood===1?'active':''}`} onClick={()=>setLikelihood(1)}>Forte</button>
+                                        <button className={`btn-like ${likelihood===2?'active':''}`} onClick={()=>setLikelihood(2)}>Certain</button>
+                                    </div>
+                                    
+                                    <button className="btn-primary" onClick={oracle}>RÉVÉLER</button>
+                                    
+                                    <div className="btn-grid" style={{marginTop:20}}>
+                                        <button className="btn-action" onClick={gens.muse}><Icons.Feather/> Inspiration</button>
+                                        <button className="btn-action" onClick={()=>addLog('twist', 'Twist', getRandom(DATA.quests.twists))} style={{borderColor:'var(--danger)', color:'#fca5a5'}}><Icons.Zap/> Twist</button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'dice' && (
+                                <div className="card">
+                                    <h2>Lancer de Dés</h2>
+                                    <div className="dice-grid" style={{marginTop:20}}>
+                                        {[4,6,8,10,12,20,100].map(d => (
+                                            <button key={d} className={`btn-dice ${d===20?'highlight':''}`} onClick={()=>rollDice(d)}>
+                                                <span>d{d}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'tools' && (
+                                <div style={{display:'flex', flexDirection:'column', gap:20}}>
+                                    <div className="card">
+                                        <h2>Générateurs</h2>
+                                        <div className="gen-list">
+                                            <div className="gen-item" onClick={gens.npc}>
+                                                <div className="gen-icon"><Icons.User/></div>
+                                                <div className="gen-content"><h4>PNJ</h4><p>Identité, Race, Classe</p></div>
+                                            </div>
+                                            <div className="gen-item" onClick={gens.loc}>
+                                                <div className="gen-icon"><Icons.Map/></div>
+                                                <div className="gen-content"><h4>Lieu</h4><p>Donjon, Danger</p></div>
+                                            </div>
+                                            <div className="gen-item" onClick={gens.quest}>
+                                                <div className="gen-icon"><Icons.List/></div>
+                                                <div className="gen-content"><h4>Quête</h4><p>Client, Cible, Objectif</p></div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="card">
+                                        <h2>Listes</h2>
+                                        <p style={{fontSize:'0.8rem', marginBottom:5, color:'var(--accent)'}}>FILS NARRATIFS</p>
+                                        <InteractiveList items={lists.threads} add={(v)=>listActions.add('threads',v)} del={(i)=>listActions.del('threads',i)} />
+                                        
+                                        <p style={{fontSize:'0.8rem', marginBottom:5, color:'var(--accent)', marginTop:15}}>PNJ IMPORTANTS</p>
+                                        <InteractiveList items={lists.npcs} add={(v)=>listActions.add('npcs',v)} del={(i)=>listActions.del('npcs',i)} />
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'journal' && (
+                                <div className="card" style={{height:'100%', display:'flex', flexDirection:'column'}}>
+                                    <div style={{display:'flex', justifyContent:'space-between', marginBottom:10}}>
+                                        <h2>Journal</h2>
+                                        <div style={{display:'flex', gap:10}}>
+                                            <button className="btn-reset" onClick={()=>setJournal('')}><Icons.Trash/></button>
+                                            <button className="btn-reset" onClick={exportTxt}><Icons.Save/></button>
+                                        </div>
+                                    </div>
+                                    <textarea value={journal} onChange={(e)=>setJournal(e.target.value)} placeholder="Votre aventure..."></textarea>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* HISTORY PANEL */}
+                        <div className="history-panel">
+                            <div className="history-header">
+                                <span>Historique</span>
+                                <button onClick={()=>setLogs([])} style={{background:'none', border:'none', color:'inherit'}}><Icons.Trash/></button>
+                            </div>
+                            <div className="history-list">
+                                {logs.length === 0 && <div style={{textAlign:'center', color:'#64748b', fontSize:'0.8rem', marginTop:20}}>Vide</div>}
+                                {logs.map((l) => (
+                                    <div key={l.id} className={`log-entry log-${l.type} ${l.content.includes('OUI')?'oui':l.content.includes('NON')?'non':''} ${l.content.includes('CRITIQUE')?'crit':l.content.includes('ÉCHEC')?'fail':''}`}>
+                                        <div className="log-meta"><span>{l.title}</span><span>{l.time}</span></div>
+                                        <div className="log-content">{l.content}</div>
+                                        {l.details && <div className="log-details">{l.details}</div>}
+                                    </div>
+                                ))}
+                                <div ref={logsEndRef} />
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+
+        function InteractiveList({ items, add, del }) {
+            const [val, setVal] = useState("");
+            return (
+                <div>
+                    <div className="interactive-list">
+                        {items.map((it, i) => (
+                            <div key={i} className="list-item">
+                                <span>{it}</span>
+                                <button className="btn-del" onClick={()=>del(i)}><Icons.Trash/></button>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="input-group">
+                        <input value={val} onChange={e=>setVal(e.target.value)} onKeyDown={e=>e.key==='Enter' && (add(val), setVal(''))} placeholder="Ajouter..." />
+                        <button className="btn-add" onClick={()=>(add(val), setVal(''))}>+</button>
+                    </div>
+                </div>
+            )
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<SoloRPGApp />);
+    </script>
+</body>
+</html>
+
+
