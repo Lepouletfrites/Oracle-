@@ -1,0 +1,377 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Dices, Brain, Save, Trash2, Skull, History, Sparkles, User, BookOpen, RefreshCw, Map, Target, Eye, Feather, Swords, Coins, List, Plus, Download, Settings } from 'lucide-react';
+
+// --- BASE DE DONNÉES ---
+
+const DATA = {
+  verbs: [
+    "Attaquer", "Défendre", "Chercher", "Négocier", "Voler", "Surveiller", "Voyager", "Inspecter", 
+    "Trahir", "Sauver", "Détruire", "Créer", "Commander", "Fuir", "Cacher", "Révéler", 
+    "Capturer", "Libérer", "Changer", "Transporter", "Usurper", "Invoquer", "Bannir", "Séduire",
+    "Intimider", "Soigner", "Empoisonner", "Piéger", "Guider", "Perdre", "Étudier", "Oublier",
+    "Venger", "Pardonner", "Sacrifier", "Corrompre", "Purifier", "Échanger", "Voler", "Mentir"
+  ],
+  nouns: [
+    "Ennemi", "Ami", "Trésor", "Piège", "Secret", "Porte", "Monstre", "Magie", 
+    "Arme", "Information", "Danger", "Chemin", "Obstacle", "Récompense", "Nature", "Ville",
+    "Ruine", "Dieu", "Roi", "Mort", "Ombre", "Lumière", "Temps", "Rêve", "Cauchemar",
+    "Sang", "Or", "Savoir", "Folie", "Honneur", "Dette", "Promesse", "Fantôme", "Rituel",
+    "Carte", "Clé", "Miroir", "Poison", "Remède", "Tempête"
+  ],
+  npc: {
+    races: ["Humain", "Elfe", "Nain", "Halfelin", "Orc", "Tieffelin", "Drakéide", "Gnome", "Aasimar", "Gobelin", "Tabaxi", "Changeforme"],
+    classes: ["Guerrier", "Mage", "Voleur", "Clerc", "Barde", "Druide", "Paladin", "Rôdeur", "Sorcier", "Moine", "Barbare", "Artificier", "Nécromancien", "Marchand"],
+    traits: ["Arrogant", "Timide", "Courageux", "Cupide", "Mystérieux", "Bavard", "Loyal", "Traître", "Blessé", "Riche", "Fanatique", "Mélancolique", "Naïf", "Cruel", "Séducteur", "Paranoïaque"],
+    motivations: [
+      "Cherche à retrouver un proche disparu", "Veut se venger d'un ancien affront", "Doit payer une dette colossale",
+      "Fuit un passé criminel", "Recherche un artefact de pouvoir", "Veut prouver sa valeur à sa famille",
+      "Est maudit et cherche un remède", "Sert une divinité obscure", "Veut juste s'enrichir", "Protège un secret d'état",
+      "Recherche l'amour perdu", "Veut tuer un rival"
+    ],
+    names_prefix: ["Ar", "Bor", "Cal", "Dor", "El", "Fal", "Gor", "Hal", "Ian", "Jar", "Kel", "Lor", "Mor", "Nal", "Or", "Pan", "Qu", "Ras", "Sil", "Tar", "Xan", "Zel"],
+    names_suffix: ["an", "bos", "cor", "dil", "en", "fin", "gorn", "hion", "il", "jun", "kan", "los", "mir", "nor", "or", "phis", "quor", "ros", "sin", "tor", "thas", "vyr"]
+  },
+  dungeon: {
+    type: ["Caverne naturelle", "Ruines antiques", "Crypte oubliée", "Temple profané", "Égouts labyrinthiques", "Forteresse naine", "Laboratoire arcanique", "Prison abandonnée"],
+    feature: ["Un autel sanglant", "Une statue qui pleure", "Un gouffre sans fond", "Des champignons luminescents", "Un trône brisé", "Une fresque prophétique", "Une fontaine magique", "Des chaînes aux murs"],
+    danger: ["Piège à fléchettes", "Sol instable", "Gaz toxique", "Embuscade de monstres", "Silence surnaturel", "Zone de magie morte", "Inondation soudaine", "Eboulis"]
+  },
+  loot: {
+    type: ["Pièces d'or", "Gemme précieuse", "Parchemin de sort", "Potion inconnue", "Arme ancienne", "Bijou maudit", "Carte au trésor", "Ingrédient rare"],
+    quality: ["Terne et usé", "Éclatant de magie", "Couvert de sang", "D'une facture alien", "Vibrant d'énergie", "Froid au toucher", "Gravé de runes", "Incroyablement léger"]
+  },
+  quests: {
+    clients: ["Un noble déchu", "Une guilde de voleurs", "Un esprit tourmenté", "Un marchand désespéré", "Un ordre religieux", "Un villageois terrifié", "Un dragon polymorphe", "Une voix dans votre tête"],
+    targets: ["Retrouver", "Détruire", "Escorter", "Enquêter sur", "Voler", "Protéger", "Capturer", "Négocier avec"],
+    objects: ["une relique maudite", "un héritier caché", "un monstre légendaire", "un document compromettant", "un lieu sacré", "une caravane de vivres", "une formule alchimique", "une âme emprisonnée"],
+    twists: ["mais c'est un piège", "mais le temps est compté", "mais une faction rivale est déjà là", "mais l'objet est vivant", "mais cela réveillera un mal ancien", "mais le client a menti", "mais la cible est un allié", "mais il faut se sacrifier"]
+  }
+};
+
+// --- UTILITAIRES ---
+
+const getRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const generateName = () => getRandom(DATA.npc.names_prefix) + getRandom(DATA.npc.names_suffix);
+
+// Helper pour charger le localStorage sans faire planter l'app
+const safeLoad = (key, fallback) => {
+  try {
+    const saved = localStorage.getItem(key);
+    return saved ? JSON.parse(saved) : fallback;
+  } catch (e) {
+    console.error("Erreur de chargement des données, retour au défaut", e);
+    return fallback;
+  }
+};
+
+// --- COMPOSANTS ---
+
+export default function SoloRPGAppV4() {
+  const [activeTab, setActiveTab] = useState('oracle');
+  
+  // --- ÉTATS PERSISTANTS ---
+  // Utilisation de safeLoad pour éviter les crashs si la V3 a corrompu les données
+  const [logs, setLogs] = useState(() => safeLoad('rpg_logs_v4', []));
+  const [journal, setJournal] = useState(() => localStorage.getItem('rpg_journal_v4') || "");
+  const [lists, setLists] = useState(() => safeLoad('rpg_lists_v4', { npcs: [], threads: [] }));
+
+  const [likelihood, setLikelihood] = useState(0);
+  const logsEndRef = useRef(null);
+  const [animatingDice, setAnimatingDice] = useState(null);
+
+  // --- EFFETS DE SAUVEGARDE ---
+  useEffect(() => localStorage.setItem('rpg_logs_v4', JSON.stringify(logs)), [logs]);
+  useEffect(() => localStorage.setItem('rpg_journal_v4', journal), [journal]);
+  useEffect(() => localStorage.setItem('rpg_lists_v4', JSON.stringify(lists)), [lists]);
+
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [logs]);
+
+  // --- ACTIONS ---
+
+  const addLog = (type, title, content, details = null) => {
+    const newLog = {
+      id: Date.now(),
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      type,
+      title,
+      content,
+      details
+    };
+    setLogs(prev => [...prev, newLog]);
+  };
+
+  const hardReset = () => {
+    if(window.confirm("ATTENTION : Cela va effacer TOUT (Journal, Historique, Listes) et remettre l'app à zéro. Utile en cas de bug.")) {
+      localStorage.clear();
+      window.location.reload();
+    }
+  };
+
+  const clearLogs = () => {
+    if(window.confirm("Effacer l'historique des lancers ?")) setLogs([]);
+  };
+
+  const exportJournal = () => {
+    const element = document.createElement("a");
+    const fileContent = `--- JOURNAL ---\n${journal}\n\n--- HISTORIQUE ---\n${logs.map(l => `[${l.timestamp}] ${l.title}: ${l.content}`).join('\n')}`;
+    const file = new Blob([fileContent], {type: 'text/plain'});
+    element.href = URL.createObjectURL(file);
+    element.download = "mon_jdr_solo.txt";
+    document.body.appendChild(element);
+    element.click();
+  };
+
+  // --- MOTEURS ---
+
+  const rollDice = (sides) => {
+    setAnimatingDice(sides);
+    setTimeout(() => setAnimatingDice(null), 300);
+
+    const result = Math.floor(Math.random() * sides) + 1;
+    let critical = "";
+    let color = "text-slate-200";
+    
+    if (sides === 20) {
+      if (result === 20) { critical = " (CRITIQUE)"; color = "text-amber-400 font-bold"; }
+      if (result === 1) { critical = " (ÉCHEC)"; color = "text-red-400 font-bold"; }
+    }
+    
+    addLog('dice', `d${sides}`, `${result}${critical}`, { rawValue: result, color });
+  };
+
+  const consultOracle = () => {
+    let roll = Math.floor(Math.random() * 20) + 1;
+    let answer = "";
+    
+    let threshold = 10; 
+    if (likelihood === -2) threshold = 18;
+    if (likelihood === -1) threshold = 15;
+    if (likelihood === 0) threshold = 10;
+    if (likelihood === 1) threshold = 5;
+    if (likelihood === 2) threshold = 2;
+
+    if (roll > threshold) {
+      if (roll >= 19) answer = "OUI, ET...";
+      else if (roll % 2 === 0) answer = "OUI";
+      else answer = "OUI, MAIS...";
+    } else {
+      if (roll <= 2) answer = "NON, ET...";
+      else if (roll % 2 !== 0) answer = "NON";
+      else answer = "NON, MAIS...";
+    }
+    addLog('oracle', 'Oracle', answer);
+  };
+
+  const generators = {
+    muse: () => addLog('muse', 'Inspiration', `${getRandom(DATA.verbs)} / ${getRandom(DATA.nouns)}`),
+    npc: () => {
+      const name = generateName();
+      const race = getRandom(DATA.npc.races);
+      const classe = getRandom(DATA.npc.classes);
+      addLog('npc', 'Nouveau PNJ', name, {
+        subtitle: `${race} ${classe}`,
+        body: `Caractère: ${getRandom(DATA.npc.traits)}\nMotivation: ${getRandom(DATA.npc.motivations)}`
+      });
+    },
+    dungeon: () => {
+       addLog('loc', 'Lieu', getRandom(DATA.dungeon.type), {
+         body: `Détail: ${getRandom(DATA.dungeon.feature)}\nDanger: ${getRandom(DATA.dungeon.danger)}`
+       });
+    },
+    loot: () => {
+      addLog('loot', 'Butin', getRandom(DATA.loot.type), {
+        body: `Aspect: ${getRandom(DATA.loot.quality)}`
+      });
+    },
+    quest: () => {
+      addLog('quest', 'Quête', "Nouvelle Mission", { 
+        body: `${getRandom(DATA.quests.clients)} veut ${getRandom(DATA.quests.targets)} ${getRandom(DATA.quests.objects)}, ${getRandom(DATA.quests.twists)}.` 
+      });
+    }
+  };
+
+  // --- GESTION LISTES ---
+  
+  const addListItem = (listKey, item) => {
+    if (!item || !item.trim()) return;
+    setLists(prev => {
+      const currentList = prev[listKey] || []; 
+      return { ...prev, [listKey]: [...currentList, item] };
+    });
+  };
+
+  const removeListItem = (listKey, index) => {
+    setLists(prev => ({ ...prev, [listKey]: prev[listKey].filter((_, i) => i !== index) }));
+  };
+
+  // --- RENDER ---
+
+  return (
+    <div className="flex flex-col h-screen bg-slate-950 text-slate-200 font-sans overflow-hidden selection:bg-amber-900">
+      
+      {/* HEADER CLEAN */}
+      <header className="bg-slate-900 border-b border-slate-800 p-3 flex justify-between items-center shadow-lg z-20 h-14 shrink-0">
+        <div className="flex items-center gap-2 text-amber-500">
+          <Skull className="w-6 h-6" />
+          <h1 className="text-lg font-bold tracking-wider">JDR SOLO</h1>
+        </div>
+        <button onClick={hardReset} className="text-xs text-slate-600 hover:text-red-500 flex items-center gap-1 px-2 py-1 rounded border border-transparent hover:border-red-900 transition-colors" title="Réinitialiser l'application">
+          <Settings size={12} /> Reset App
+        </button>
+      </header>
+
+      {/* MAIN LAYOUT */}
+      <div className="flex flex-1 overflow-hidden relative">
+        
+        {/* NAVIGATION (Bottom on Mobile, Left on Desktop) */}
+        <nav className="absolute bottom-0 left-0 w-full h-16 bg-slate-900 border-t border-slate-800 flex justify-around items-center z-30 md:relative md:w-20 md:h-full md:flex-col md:justify-start md:pt-4 md:border-t-0 md:border-r md:bottom-auto shrink-0">
+          <NavButton active={activeTab === 'oracle'} onClick={() => setActiveTab('oracle')} icon={<Brain />} label="Oracle" />
+          <NavButton active={activeTab === 'dice'} onClick={() => setActiveTab('dice')} icon={<Dices />} label="Dés" />
+          <NavButton active={activeTab === 'gens'} onClick={() => setActiveTab('gens')} icon={<Sparkles />} label="Outils" />
+          <NavButton active={activeTab === 'campaign'} onClick={() => setActiveTab('campaign')} icon={<List />} label="Listes" />
+          <NavButton active={activeTab === 'journal'} onClick={() => setActiveTab('journal')} icon={<BookOpen />} label="Journal" />
+        </nav>
+
+        {/* WORKSPACE AREA */}
+        <main className="flex-1 flex flex-col md:flex-row overflow-hidden mb-16 md:mb-0">
+          
+          {/* CENTRAL PANEL */}
+          <div className="flex-1 overflow-y-auto bg-slate-950 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black p-4 md:p-6 scroll-smooth">
+            <div className="max-w-2xl mx-auto pb-20 md:pb-0">
+            
+            {/* --- ORACLE --- */}
+            {activeTab === 'oracle' && (
+              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300 py-4">
+                <div className="text-center space-y-1">
+                  <h2 className="text-2xl md:text-3xl font-light text-slate-100">L'Oracle</h2>
+                  <p className="text-slate-500 text-sm">Posez une question Oui/Non</p>
+                </div>
+
+                <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800 shadow-xl">
+                  <div className="flex flex-wrap justify-center gap-2 mb-6">
+                    <LikelihoodButton val={-2} label="Impossible" current={likelihood} set={setLikelihood} />
+                    <LikelihoodButton val={-1} label="Faible" current={likelihood} set={setLikelihood} />
+                    <LikelihoodButton val={0} label="50 / 50" current={likelihood} set={setLikelihood} />
+                    <LikelihoodButton val={1} label="Forte" current={likelihood} set={setLikelihood} />
+                    <LikelihoodButton val={2} label="Certaine" current={likelihood} set={setLikelihood} />
+                  </div>
+                  <button onClick={consultOracle} className="w-full py-4 bg-amber-600 hover:bg-amber-500 text-white text-lg font-bold rounded-lg shadow-lg transition-all active:scale-95 border border-amber-400">
+                    RÉVÉLER
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                   <ActionButton icon={<Feather className="w-5 h-5"/>} label="Inspiration (Verbe)" onClick={generators.muse} />
+                   <ActionButton icon={<RefreshCw className="w-5 h-5"/>} label="Rebondissement" onClick={() => addLog('twist', 'Twist', getRandom(DATA.quests.twists))} color="red" />
+                </div>
+              </div>
+            )}
+
+            {/* --- DICES --- */}
+            {activeTab === 'dice' && (
+              <div className="space-y-6 animate-in fade-in zoom-in-95 duration-300 py-4">
+                <h2 className="text-2xl font-light text-slate-100 border-b border-slate-800 pb-2">Table de Lancer</h2>
+                <div className="grid grid-cols-3 md:grid-cols-4 gap-4">
+                  {[4, 6, 8, 10, 12, 20, 100].map(side => (
+                    <DiceButton key={side} sides={side} onClick={() => rollDice(side)} highlight={side === 20} isAnimating={animatingDice === side} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* --- TOOLS --- */}
+            {activeTab === 'gens' && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300 py-4">
+                <h2 className="text-2xl font-light text-slate-100 border-b border-slate-800 pb-2">Générateurs</h2>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <GeneratorCard icon={<User className="text-blue-400" />} title="PNJ" desc="Identité & Motivation" onClick={generators.npc} />
+                  <GeneratorCard icon={<Target className="text-red-400" />} title="Quête" desc="Générateur de scénario" onClick={generators.quest} />
+                  <GeneratorCard icon={<Map className="text-green-400" />} title="Lieu" desc="Donjon & Dangers" onClick={generators.dungeon} />
+                  <GeneratorCard icon={<Coins className="text-yellow-400" />} title="Butin" desc="Trésor aléatoire" onClick={generators.loot} />
+                  <GeneratorCard icon={<Swords className="text-slate-400" />} title="Action" desc="Verbe + Sujet" onClick={generators.muse} />
+                </div>
+              </div>
+            )}
+
+            {/* --- CAMPAIGN (Clean Lists) --- */}
+            {activeTab === 'campaign' && (
+              <div className="space-y-8 animate-in fade-in duration-300 py-4">
+                <h2 className="text-2xl font-light text-slate-100 border-b border-slate-800 pb-2">Mémoire de Campagne</h2>
+                <div className="grid gap-6">
+                  <InteractiveList 
+                    title="Fils Narratifs (Quêtes en cours)" 
+                    items={lists.threads || []} 
+                    onAdd={(t) => addListItem('threads', t)} 
+                    onRemove={(i) => removeListItem('threads', i)} 
+                    placeholder="Ex: Enquêter sur la secte..."
+                  />
+                  <InteractiveList 
+                    title="PNJ Importants" 
+                    items={lists.npcs || []} 
+                    onAdd={(t) => addListItem('npcs', t)} 
+                    onRemove={(i) => removeListItem('npcs', i)} 
+                    placeholder="Ex: Gorian (Forgeron)"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* --- JOURNAL --- */}
+            {activeTab === 'journal' && (
+              <div className="h-full flex flex-col animate-in fade-in duration-300 py-4">
+                <div className="flex justify-between items-center mb-4">
+                   <h2 className="text-2xl font-light text-slate-100">Journal</h2>
+                   <div className="flex gap-2">
+                     <button className="text-slate-400 hover:text-white text-xs flex items-center gap-1 px-3 py-1 bg-slate-800 rounded border border-slate-700" onClick={() => {if(confirm('Effacer le texte ?')) setJournal("");}}>
+                       <Trash2 size={14} />
+                     </button>
+                     <button className="text-blue-400 hover:text-blue-300 text-xs flex items-center gap-1 px-3 py-1 bg-slate-800 border border-blue-900 rounded" onClick={exportJournal}>
+                       <Download size={14} /> Export
+                     </button>
+                   </div>
+                </div>
+                <textarea 
+                  className="flex-1 w-full min-h-[50vh] bg-slate-900/80 border border-slate-700 rounded-lg p-4 text-slate-300 font-mono leading-relaxed focus:outline-none focus:border-amber-500 resize-none shadow-inner text-sm md:text-base"
+                  placeholder="Récit de l'aventure..."
+                  value={journal}
+                  onChange={(e) => setJournal(e.target.value)}
+                />
+              </div>
+            )}
+            </div>
+          </div>
+
+          {/* RIGHT SIDEBAR (HISTORY) */}
+          <div className="w-full md:w-80 bg-slate-900 border-t md:border-t-0 md:border-l border-slate-800 flex flex-col h-[35vh] md:h-full shadow-2xl z-10 shrink-0">
+            <div className="p-3 border-b border-slate-800 bg-slate-900 flex justify-between items-center shrink-0 h-10">
+              <div className="flex items-center gap-2 text-slate-400 text-sm font-bold uppercase tracking-wider">
+                <History size={14} /> Historique
+              </div>
+              <button onClick={clearLogs} className="p-1 hover:bg-red-900/30 hover:text-red-400 rounded-md text-slate-600 transition-colors">
+                <Trash2 size={14} />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-900">
+              {logs.length === 0 && <div className="text-center text-slate-600 text-xs mt-10 italic">Vide</div>}
+              {logs.map((log) => <LogEntry key={log.id} log={log} />)}
+              <div ref={logsEndRef} />
+            </div>
+          </div>
+
+        </main>
+      </div>
+    </div>
+  );
+}
+
+// --- UI COMPONENTS ---
+
+function NavButton({ active, onClick, icon, label }) {
+  return (
+    <button onClick={onClick} className={`flex flex-col items-center justify-center gap-1 p-1 w-full md:py-4 md:px-2 transition-all relative ${active ? 'text-amber-500' : 'text-slate-500 hover:text-slate-200'}`}>
+      <div className={`p-2 rounded-xl transition-all ${active ? 'bg-slate-800' : ''}`}>{React.cloneElement(icon, { size: 20 })}</div>
+      <span className="text-[10px] font-medium">{label}</span>
+      {active && <div className="hidden md:block absol
